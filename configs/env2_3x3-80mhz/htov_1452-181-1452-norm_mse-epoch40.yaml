@@ -1,0 +1,107 @@
+datasets:
+  mu_mimo:
+    name: &dataset_name 'mu_mimo-env2_3x3-80mhz'
+    type: 'MuMIMODataset'
+    root: &root_dir !join ['./resource/datasets/real/env2/', *dataset_name]
+    splits:
+      train:
+        dataset_id: &train_split !join [*dataset_name, '/train']
+        root_split_dir: &train_root_dir !join [*root_dir, '/train']
+        params:
+          h_mat_file_paths:
+            - !join [*train_root_dir, '/rx1_3x1-h_mat.npy']
+            - !join [*train_root_dir, '/rx2_3x1-h_mat.npy']
+            - !join [*train_root_dir, '/rx3_3x1-h_mat.npy']
+          v_mat_file_paths:
+            - !join [*train_root_dir, '/rx1_3x1-v_mat.npy']
+            - !join [*train_root_dir, '/rx2_3x1-v_mat.npy']
+            - !join [*train_root_dir, '/rx3_3x1-v_mat.npy']
+      val:
+        dataset_id: &val_split !join [*dataset_name, '/val']
+        root_split_dir: &val_root_dir !join [*root_dir, '/val']
+        params:
+          h_mat_file_paths:
+            - !join [*val_root_dir, '/rx1_3x1-h_mat.npy']
+            - !join [*val_root_dir, '/rx2_3x1-h_mat.npy']
+            - !join [*val_root_dir, '/rx3_3x1-h_mat.npy']
+          v_mat_file_paths:
+            - !join [*val_root_dir, '/rx1_3x1-v_mat.npy']
+            - !join [*val_root_dir, '/rx2_3x1-v_mat.npy']
+            - !join [*val_root_dir, '/rx3_3x1-v_mat.npy']
+      test:
+        dataset_id: &test_split !join [*dataset_name, '/test']
+        root_split_dir: &test_root_dir !join [*root_dir, '/test']
+        params:
+          h_mat_file_paths:
+            - !join [*test_root_dir, '/rx1_3x1-h_mat.npy']
+            - !join [*test_root_dir, '/rx2_3x1-h_mat.npy']
+            - !join [*test_root_dir, '/rx3_3x1-h_mat.npy']
+          v_mat_file_paths:
+            - !join [*test_root_dir, '/rx1_3x1-v_mat.npy']
+            - !join [*test_root_dir, '/rx2_3x1-v_mat.npy']
+            - !join [*test_root_dir, '/rx3_3x1-v_mat.npy']
+
+models:
+  model:
+    name: &model_name 'HtoV'
+    params:
+      encoder_node_counts: [1452, 181]
+      decoder_node_counts: [181, 1452]
+    experiment: &experiment !join [*dataset_name, '-', *model_name, '_1452-181-1452-epoch40']
+    ckpt: !join ['./resource/ckpt/', *dataset_name, '/norm_mse/', *experiment, '.pt']
+
+train:
+  matlab_eval_config: &matlab_eval_config !join [*root_dir, '/config.mat']
+  uses_sim_data: False
+  log_freq: 100
+  num_epochs: 40
+  train_data_loader:
+    dataset_id: *train_split
+    random_sample: True
+    batch_size: 4
+    num_workers: 0
+    requires_supp: False
+    cache_output:
+  val_data_loader:
+    dataset_id: *val_split
+    random_sample: False
+    batch_size: 2000
+    num_workers: 0
+    requires_supp: False
+  model:
+    adaptations:
+    sequential: []
+    wrapper: 'DistributedDataParallel'
+    requires_grad: True
+    frozen_modules: []
+  apex:
+    requires: False
+    opt_level: '01'
+  optimizer:
+    type: 'SGD'
+    params:
+      lr: 0.001
+      momentum: 0.9
+      weight_decay: 0.0001
+  scheduler:
+    type: 'MultiStepLR'
+    params:
+      milestones: [20, 30]
+      gamma: 0.1
+  criterion:
+    type: 'GeneralizedCustomLoss'
+    org_term:
+      criterion:
+        type: 'NormalizedReconstructionLoss'
+        params: {}
+      factor: 1.0
+    sub_terms:
+
+test:
+  matlab_eval_config: *matlab_eval_config
+  uses_sim_data: False
+  test_data_loader:
+    dataset_id: *test_split
+    random_sample: False
+    batch_size: 2000
+    num_workers: 0
